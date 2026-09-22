@@ -1,0 +1,22 @@
+{
+  "name": "jev-reviews",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev --host",
+    "start": "astro dev --host",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.1.0",
+    "@supabase/supabase-js": "^2.49.1",
+    "apify-client": "^2.11.3",
+    "astro": "^5.4.2",
+    "dotenv": "^18.0.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}

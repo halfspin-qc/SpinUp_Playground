@@ -1,0 +1,105 @@
+---
+import Header from '../components/Header.astro';
+import KeySettingsModal from '../components/KeySettingsModal.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Experimental AI Lab showcasing LLM pipelines, review classifications, and agentic workflows.' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title} | SpinUp Experiments with AI</title>
+    <meta name="description" content={description} />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={`${title} | SpinUp Experiments with AI`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+
+    <!-- Google Fonts Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body>
+    <Header />
+    <main>
+      <slot />
+    </main>
+
+    <footer class="app-footer">
+      <div class="container footer-container">
+        <div class="footer-left">
+          <span class="footer-brand">SpinUp Experiments with AI</span>
+          <span class="footer-copy">&copy; 2026. Experimental model playground & pipelines.</span>
+        </div>
+        <div class="footer-right">
+          <span class="safe-tag">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            Public Repo Safe &bull; Zero Hardcoded Secrets
+          </span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Global In-Memory Key Modal -->
+    <KeySettingsModal />
+  </body>
+</html>
+
+<style>
+  main {
+    min-height: calc(100vh - 140px);
+    padding-bottom: 60px;
+  }
+
+  .app-footer {
+    border-top: 1px solid var(--border-subtle);
+    background: rgba(9, 13, 12, 0.95);
+    padding: 24px 0;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .footer-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .footer-brand {
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+
+  .safe-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    font-size: 12px;
+  }
+</style>

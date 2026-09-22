@@ -1,0 +1,416 @@
+---
+// KeySettingsModal.astro - In-Memory Session Credential Manager
+---
+
+<div id="key-modal-overlay" class="modal-overlay" style="display: none;">
+  <div class="modal-panel glass-card">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <div class="icon-wrap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <div>
+          <h3>Session API Keys & Credentials</h3>
+          <p class="subtitle">Keys are stored only in your browser's active tab (<code>sessionStorage</code>) and are never written to disk or git.</p>
+        </div>
+      </div>
+      <button id="close-modal-btn" class="close-btn" aria-label="Close modal">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <div id="server-env-status-banner" class="status-banner" style="display: none;">
+        <span class="pulse-dot"></span>
+        <span id="server-env-status-text">Checking server environment...</span>
+      </div>
+
+      <!-- Apify Credentials -->
+      <div class="field-section">
+        <div class="section-label">
+          <span class="badge">1</span>
+          <h4>Apify Storage & Scraper</h4>
+        </div>
+        <p class="field-hint">Used to fetch Google review scrapes from Apify datasets.</p>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="session-apify-token">Apify API Token</label>
+            <input type="password" id="session-apify-token" class="input-field" placeholder="apify_api_..." autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="session-apify-dataset">Default Dataset ID (Optional)</label>
+            <input type="text" id="session-apify-dataset" class="input-field" placeholder="e.g. wFhK87S9y..." autocomplete="off" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Supabase Credentials -->
+      <div class="field-section">
+        <div class="section-label">
+          <span class="badge">2</span>
+          <h4>Supabase Database</h4>
+        </div>
+        <p class="field-hint">Stores review records and classified insights. Found in Supabase -> Project Settings -> API.</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="session-supabase-url">Project URL</label>
+            <input type="url" id="session-supabase-url" class="input-field" placeholder="https://your-project.supabase.co" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="session-supabase-key">API Key (Service Role or Anon)</label>
+            <input type="password" id="session-supabase-key" class="input-field" placeholder="eyJh..." autocomplete="off" />
+          </div>
+        </div>
+      </div>
+
+      <!-- LLM Credentials -->
+      <div class="field-section">
+        <div class="section-label">
+          <span class="badge">3</span>
+          <h4>Language Model (Classifier)</h4>
+        </div>
+        <p class="field-hint">Powers sentiment analysis, food rating extraction, and owner action items.</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="session-llm-provider">Provider</label>
+            <select id="session-llm-provider" class="select-field">
+              <option value="jev" selected>Jev (TypeSafe System One - Recommended)</option>
+              <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+              <option value="gemini">Google Gemini (Gemini 2.5 Flash)</option>
+              <option value="groq">Groq (Llama 3.3 70B)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="session-llm-model">Model Name (Optional override)</label>
+            <input type="text" id="session-llm-model" class="input-field" placeholder="Default: jev-latest" />
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 12px;">
+          <label for="session-llm-key">Jev / Model API Key</label>
+          <input type="password" id="session-llm-key" class="input-field" placeholder="JEV_API_KEY (or sk-... / AIza...)" autocomplete="off" />
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button id="clear-session-btn" class="btn btn-secondary btn-sm" type="button">
+        Clear Session Keys
+      </button>
+      <div class="footer-actions">
+        <button id="cancel-modal-btn" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="save-session-btn" class="btn btn-primary" type="button">
+          Save for this Session
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(4, 7, 13, 0.75);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-panel {
+    width: 100%;
+    max-width: 680px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: #0d1412;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 28px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    transition: var(--transition);
+  }
+
+  .close-btn:hover {
+    color: #ffffff;
+  }
+
+  .modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .status-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: #6ee7b7;
+  }
+
+  .field-section {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .field-hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 600px) {
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-top: 1px solid var(--border-subtle);
+    background: rgba(10, 15, 26, 0.6);
+  }
+
+  .footer-actions {
+    display: flex;
+    gap: 10px;
+  }
+</style>
+
+<script>
+  // Browser-side session storage management
+  const STORAGE_KEY = 'jev_session_credentials';
+
+  function getStoredCredentials() {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function setStoredCredentials(creds: Record<string, string>) {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(creds));
+      window.dispatchEvent(new CustomEvent('session-keys-updated', { detail: creds }));
+    } catch (e) {
+      console.error('Could not save to sessionStorage', e);
+    }
+  }
+
+  function clearStoredCredentials() {
+    sessionStorage.removeItem(STORAGE_KEY);
+    window.dispatchEvent(new CustomEvent('session-keys-updated', { detail: {} }));
+  }
+
+  // Populate fields
+  function populateModalFields() {
+    const creds = getStoredCredentials();
+    const apifyToken = document.getElementById('session-apify-token') as HTMLInputElement;
+    const apifyDataset = document.getElementById('session-apify-dataset') as HTMLInputElement;
+    const supabaseUrl = document.getElementById('session-supabase-url') as HTMLInputElement;
+    const supabaseKey = document.getElementById('session-supabase-key') as HTMLInputElement;
+    const llmProvider = document.getElementById('session-llm-provider') as HTMLSelectElement;
+    const llmModel = document.getElementById('session-llm-model') as HTMLInputElement;
+    const llmKey = document.getElementById('session-llm-key') as HTMLInputElement;
+
+    if (apifyToken) apifyToken.value = creds.apifyToken || '';
+    if (apifyDataset) apifyDataset.value = creds.apifyDataset || '';
+    if (supabaseUrl) supabaseUrl.value = creds.supabaseUrl || '';
+    if (supabaseKey) supabaseKey.value = creds.supabaseKey || '';
+    if (llmProvider && creds.llmProvider) llmProvider.value = creds.llmProvider;
+    if (llmModel) llmModel.value = creds.llmModel || '';
+    if (llmKey) llmKey.value = creds.llmApiKey || '';
+  }
+
+  // Check server health
+  async function checkServerEnv() {
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const data = await res.json();
+        const banner = document.getElementById('server-env-status-banner');
+        const text = document.getElementById('server-env-status-text');
+        if (banner && text && data.envConfigured) {
+          const parts: string[] = [];
+          if (data.envConfigured.apify) parts.push('Apify');
+          if (data.envConfigured.supabase) parts.push('Supabase');
+          if (data.envConfigured.llm) parts.push(`LLM (${data.envConfigured.llmProvider})`);
+
+          if (parts.length > 0) {
+            banner.style.display = 'flex';
+            text.textContent = `Server .env detected: ${parts.join(', ')} configured on host. You can still override them per session below.`;
+          }
+        }
+      }
+    } catch {
+      // Ignore background check error
+    }
+  }
+
+  // Setup DOM events
+  document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('key-modal-overlay');
+    const closeBtn = document.getElementById('close-modal-btn');
+    const cancelBtn = document.getElementById('cancel-modal-btn');
+    const saveBtn = document.getElementById('save-session-btn');
+    const clearBtn = document.getElementById('clear-session-btn');
+
+    function closeModal() {
+      if (modal) modal.style.display = 'none';
+    }
+
+    window.openKeyModal = () => {
+      populateModalFields();
+      checkServerEnv();
+      if (modal) modal.style.display = 'flex';
+    };
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        const apifyToken = (document.getElementById('session-apify-token') as HTMLInputElement)?.value.trim();
+        const apifyDataset = (document.getElementById('session-apify-dataset') as HTMLInputElement)?.value.trim();
+        const supabaseUrl = (document.getElementById('session-supabase-url') as HTMLInputElement)?.value.trim();
+        const supabaseKey = (document.getElementById('session-supabase-key') as HTMLInputElement)?.value.trim();
+        const llmProvider = (document.getElementById('session-llm-provider') as HTMLSelectElement)?.value;
+        const llmModel = (document.getElementById('session-llm-model') as HTMLInputElement)?.value.trim();
+        const llmKey = (document.getElementById('session-llm-key') as HTMLInputElement)?.value.trim();
+
+        setStoredCredentials({
+          apifyToken,
+          apifyDataset,
+          supabaseUrl,
+          supabaseKey,
+          llmProvider,
+          llmModel,
+          llmApiKey: llmKey,
+          jevApiKey: llmKey,
+        });
+
+        closeModal();
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        clearStoredCredentials();
+        populateModalFields();
+      });
+    }
+
+    // Initial check
+    checkServerEnv();
+  });
+
+  declare global {
+    interface Window {
+      openKeyModal?: () => void;
+    }
+  }
+</script>

@@ -1,0 +1,2116 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="jev-reviews: Google Review Scrapes & LLM Classifier" description="Scrape Google restaurant reviews from Apify, store in Supabase, and classify with LLM intelligence.">
+  <div class="container app-container">
+    <!-- Top Bar / Title -->
+    <div class="page-header">
+      <div class="header-titles">
+        <div class="breadcrumb">
+          <a href="/">Experiments Hub</a>
+          <span>/</span>
+          <span class="active">jev-reviews</span>
+        </div>
+        <h1>Google Restaurant Reviews & LLM Classifier</h1>
+        <p class="subtitle">Extract reviews from Apify storage &bull; Persist in Supabase &bull; Classify sentiment, food quality, service, and owner action items with LLMs.</p>
+      </div>
+
+      <div class="header-actions">
+        <button id="toggle-guide-btn" class="btn btn-secondary" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          Step-by-Step Setup Guide
+        </button>
+        <button class="btn btn-secondary" onclick="window.openKeyModal && window.openKeyModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          API Keys
+        </button>
+      </div>
+    </div>
+
+    <!-- Step-by-Step Setup Drawer / Collapsible Guide -->
+    <div id="setup-guide-box" class="guide-box glass-card" style="display: none;">
+      <div class="guide-header">
+        <div class="guide-header-title">
+          <span class="guide-icon">📖</span>
+          <h3>Step-by-Step Integration Guide (Apify &rarr; Supabase &rarr; LLM)</h3>
+        </div>
+        <button id="close-guide-btn" class="close-guide-btn">&times;</button>
+      </div>
+
+      <div class="guide-steps-grid">
+        <!-- Step 1 -->
+        <div class="guide-step-card">
+          <div class="step-badge">Step 1</div>
+          <h4>Apify Google Reviews Scraper</h4>
+          <p>Scrapes customer reviews from any restaurant on Google Maps.</p>
+          <ol class="guide-list">
+            <li>Create a free account at <a href="https://apify.com" target="_blank" class="text-link">Apify.com</a>.</li>
+            <li>Use the <strong>Google Maps Reviews Scraper</strong> actor (e.g. <code>compass/crawler-google-places</code>).</li>
+            <li>Run the actor with your target restaurant Google Maps URL.</li>
+            <li>Under <strong>Storage &rarr; Datasets</strong>, copy your <strong>Dataset ID</strong> (looks like <code>wFhK87S9y...</code>).</li>
+            <li>Copy your <strong>API Token</strong> from Apify Console &rarr; Integrations.</li>
+          </ol>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="guide-step-card">
+          <div class="step-badge">Step 2</div>
+          <h4>Supabase Database Setup</h4>
+          <p>Creates the structured PostgreSQL table & indexes for reviews.</p>
+          <ol class="guide-list">
+            <li>Create a free project at <a href="https://supabase.com" target="_blank" class="text-link">Supabase.com</a>.</li>
+            <li>Open the <strong>SQL Editor</strong> in your Supabase dashboard.</li>
+            <li>Copy and paste the entire contents of <code>supabase/schema.sql</code> from this repo.</li>
+            <li>Click <strong>Run</strong>. This creates the <code>restaurant_reviews</code> table, RLS policies, and stats views.</li>
+            <li>Copy your <strong>Project URL</strong> and <strong>Service Role Key</strong> (or Anon Key) from Project Settings &rarr; API.</li>
+          </ol>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="guide-step-card">
+          <div class="step-badge">Step 3</div>
+          <h4>Jev Model Classification</h4>
+          <p>Instant decision classification for sorting, scoring, and calibrated probabilities.</p>
+          <ol class="guide-list">
+            <li><strong>Model:</strong> <code>jev-latest</code> (TypeSafe System One: <code>https://api.typesafe.ai/v1/systemone</code>).</li>
+            <li><strong>Pricing:</strong> $42 per billion tokens (<strong>$0.042 / Mtok</strong> input). Output tokens are free ($0.00).</li>
+            <li><strong>Speed:</strong> Sub-second response time (~200–500ms) with zero hallucinated fluff.</li>
+            <li><strong>Answer Shapes:</strong> <em>Choice</em> (options), <em>Score</em> (scales), and <em>Noul</em> (yes/no probabilities).</li>
+            <li>Add <code>JEV_API_KEY</code> to <code>.env</code> or click <strong>API Keys</strong> in the top header.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toast Bar -->
+    <div id="toast-banner" class="toast-banner" style="display: none;">
+      <span id="toast-message">Notification</span>
+      <button id="toast-close" class="toast-close">&times;</button>
+    </div>
+
+    <!-- Pipeline KPI Metrics Bar -->
+    <div class="kpi-grid">
+      <div class="kpi-card glass-card">
+        <span class="kpi-label">Total Reviews</span>
+        <div class="kpi-value-wrap">
+          <span id="stat-total" class="kpi-value">0</span>
+          <span class="kpi-icon">📁</span>
+        </div>
+        <span class="kpi-sub">Stored in Supabase</span>
+      </div>
+
+      <div class="kpi-card glass-card">
+        <span class="kpi-label">Classified Reviews</span>
+        <div class="kpi-value-wrap">
+          <span id="stat-processed" class="kpi-value text-accent">0</span>
+          <span class="kpi-icon">🧠</span>
+        </div>
+        <span class="kpi-sub" id="stat-processed-pct">0% processed</span>
+      </div>
+
+      <div class="kpi-card glass-card">
+        <span class="kpi-label">Pending</span>
+        <div class="kpi-value-wrap">
+          <span id="stat-pending" class="kpi-value text-amber">0</span>
+          <span class="kpi-icon">⏳</span>
+        </div>
+        <span class="kpi-sub">Awaiting classification</span>
+      </div>
+
+      <div class="kpi-card glass-card">
+        <span class="kpi-label">Jev Speed & Cost</span>
+        <div class="kpi-value-wrap">
+          <span id="stat-jev-speed" class="kpi-value text-accent">~280ms</span>
+          <span class="kpi-icon">⚡</span>
+        </div>
+        <span class="kpi-sub" id="stat-jev-cost">Est. ~$0.000018 / rev ($0.042/Mtok)</span>
+      </div>
+
+      <div class="kpi-card glass-card">
+        <span class="kpi-label">Avg Google Rating</span>
+        <div class="kpi-value-wrap">
+          <span id="stat-rating" class="kpi-value text-yellow">0.0</span>
+          <span class="kpi-icon">⭐</span>
+        </div>
+        <span class="kpi-sub">Across scraped reviews</span>
+      </div>
+
+      <div class="kpi-card glass-card">
+        <span class="kpi-label">Sentiment Breakdown</span>
+        <div class="sentiment-bar-wrap">
+          <div class="sentiment-bar">
+            <div id="bar-pos" class="bar-fill pos" style="width: 33%" title="Positive"></div>
+            <div id="bar-neu" class="bar-fill neu" style="width: 33%" title="Neutral"></div>
+            <div id="bar-neg" class="bar-fill neg" style="width: 34%" title="Negative"></div>
+          </div>
+          <div class="sentiment-counts">
+            <span class="count-tag text-green"><b id="count-pos">0</b> Pos</span>
+            <span class="count-tag text-amber"><b id="count-neu">0</b> Neu</span>
+            <span class="count-tag text-red"><b id="count-neg">0</b> Neg</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline Control Panel -->
+    <div class="control-panel glass-card">
+      <div class="panel-section">
+        <div class="section-heading">
+          <div class="step-pill">Stage 1</div>
+          <h3>Sync from Apify Storage</h3>
+        </div>
+        <p class="section-desc">Fetch Google reviews scraped into your Apify Dataset and upsert into Supabase.</p>
+        
+        <div class="sync-form-row">
+          <input type="text" id="apify-dataset-input" class="input-field" placeholder="Enter Apify Dataset ID (e.g. wFhK87S9y...)" />
+          <select id="apify-sync-limit" class="select-field limit-select">
+            <option value="25">Sync 25</option>
+            <option value="50" selected>Sync 50</option>
+            <option value="100">Sync 100</option>
+          </select>
+          <button id="sync-apify-btn" class="btn btn-primary" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Sync to Supabase
+          </button>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <div class="panel-section">
+        <div class="section-heading">
+          <div class="step-pill">Stage 2</div>
+          <h3>Run LLM Review Classifier</h3>
+        </div>
+        <p class="section-desc">Analyze unclassified reviews with LLM to extract 5-pillar ratings, dishes, and owner insights.</p>
+
+        <div class="classify-form-row">
+          <div class="batch-select-wrap">
+            <label for="classify-batch-size">Batch Size:</label>
+            <select id="classify-batch-size" class="select-field">
+              <option value="3">3 reviews (Quick test)</option>
+              <option value="5" selected>5 reviews</option>
+              <option value="10">10 reviews</option>
+            </select>
+          </div>
+          <button id="run-classify-btn" class="btn btn-primary" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Run Classifier
+          </button>
+          <button id="refresh-reviews-btn" class="btn btn-secondary" type="button" title="Refresh data">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6"></path>
+              <path d="M1 20v-6h6"></path>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter & Search Toolbar -->
+    <div class="toolbar glass-card">
+      <div class="search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="filter-search-input" class="search-input" placeholder="Search reviews by restaurant name or text..." />
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-status">Status:</label>
+        <select id="filter-status" class="select-field filter-select">
+          <option value="all">All Statuses</option>
+          <option value="processed">Processed (Classified)</option>
+          <option value="pending">Pending</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-sentiment">Sentiment:</label>
+        <select id="filter-sentiment" class="select-field filter-select">
+          <option value="all">All Sentiments</option>
+          <option value="positive">Positive</option>
+          <option value="neutral">Neutral</option>
+          <option value="negative">Negative</option>
+        </select>
+      </div>
+
+      <!-- View Switcher: Cards vs Table Matrix -->
+      <div class="view-toggle-group">
+        <button id="view-mode-cards" class="view-toggle-btn active" type="button" title="Grid Cards View">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Cards View
+        </button>
+        <button id="view-mode-table" class="view-toggle-btn" type="button" title="Operational Score Matrix Table View">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+          Score Matrix Table
+        </button>
+      </div>
+    </div>
+
+    <!-- Reviews Grid (Cards View) -->
+    <div id="reviews-container" class="reviews-grid">
+      <div class="loading-state">
+        <span class="pulse-dot"></span>
+        <p>Connecting to database & loading reviews...</p>
+      </div>
+    </div>
+
+    <!-- Reviews Operational Matrix Table View -->
+    <div id="reviews-table-container" class="glass-card table-wrapper" style="display: none;">
+      <div class="table-scroll">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Restaurant & Reviewer</th>
+              <th>Rating</th>
+              <th>Sentiment</th>
+              <th>Score</th>
+              <th title="Food Quality Rating (1-5)">🍽️ Food</th>
+              <th title="Service Quality Rating (1-5)">🛎️ Service</th>
+              <th title="Cleanliness Rating (1-5)">✨ Clean</th>
+              <th title="Atmosphere Rating (1-5)">🕯️ Atmo</th>
+              <th title="Value for Money (1-5)">💵 Value</th>
+              <th title="Jev System One Telemetry">⚡ Jev Inference</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-table-body">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deep Inspection Modal -->
+  <div id="detail-modal-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal-panel glass-card detail-panel">
+      <div class="modal-header">
+        <div>
+          <h3 id="modal-rest-name">Restaurant Name</h3>
+          <p id="modal-reviewer-meta" class="subtitle">Reviewer &bull; Date</p>
+        </div>
+        <button id="close-detail-modal" class="close-btn">&times;</button>
+      </div>
+
+      <div class="modal-body detail-modal-body">
+        <!-- Original Review Box -->
+        <div class="detail-section">
+          <h4>Original Google Review</h4>
+          <div class="rating-row">
+            <span id="modal-stars" class="stars-display">⭐⭐⭐⭐⭐</span>
+            <span id="modal-rating-num" class="rating-badge">5.0</span>
+          </div>
+          <p id="modal-review-text" class="quote-text">Customer review body text goes here...</p>
+        </div>
+
+        <!-- LLM Executive Summary -->
+        <div class="detail-section highlight-box">
+          <div class="badge-row">
+            <span id="modal-sentiment-pill" class="pill pill-positive">Positive</span>
+            <span id="modal-score-pill" class="pill pill-neutral">Score: 4.8 / 5.0</span>
+          </div>
+          <h4 style="margin-top: 10px;">Executive Summary (Classification)</h4>
+          <p id="modal-summary-text" class="summary-text">Summary text...</p>
+        </div>
+
+        <!-- Jev System One Telemetry Box -->
+        <div id="modal-jev-box" class="detail-section jev-metrics-card" style="display: none;">
+          <div class="jev-metrics-header">
+            <div class="jev-model-tag">
+              <span class="pulse-dot"></span>
+              <span id="modal-jev-model">Jev 1.13 (System One)</span>
+            </div>
+            <div class="jev-quick-stats">
+              <span class="stat-badge">⚡ Latency: <b id="modal-jev-latency">-</b></span>
+              <span class="stat-badge">💰 Cost: <b id="modal-jev-cost">-</b></span>
+              <span class="stat-badge">🎯 Confidence: <b id="modal-jev-conf">-</b></span>
+            </div>
+          </div>
+          <p class="jev-desc">Evaluated with single-forward-pass inference over 9 typed questions (Choice, Score, Noul) at $0.042/Mtok input ($0 output).</p>
+          <div id="modal-jev-probs" class="probs-grid"></div>
+        </div>
+
+        <!-- 5-Pillar Operational Breakdown -->
+        <div class="detail-section">
+          <h4>5-Pillar Operational Assessment</h4>
+          <div class="pillars-grid">
+            <div class="pillar-card">
+              <div class="pillar-head">
+                <span>🍽️ Food Quality</span>
+                <b id="pillar-food-score">-</b>
+              </div>
+              <p id="pillar-food-note" class="pillar-note">Not specified</p>
+            </div>
+
+            <div class="pillar-card">
+              <div class="pillar-head">
+                <span>🛎️ Service</span>
+                <b id="pillar-service-score">-</b>
+              </div>
+              <p id="pillar-service-note" class="pillar-note">Not specified</p>
+            </div>
+
+            <div class="pillar-card">
+              <div class="pillar-head">
+                <span>✨ Cleanliness</span>
+                <b id="pillar-clean-score">-</b>
+              </div>
+              <p id="pillar-clean-note" class="pillar-note">Not specified</p>
+            </div>
+
+            <div class="pillar-card">
+              <div class="pillar-head">
+                <span>🕯️ Atmosphere</span>
+                <b id="pillar-atmo-score">-</b>
+              </div>
+              <p id="pillar-atmo-note" class="pillar-note">Not specified</p>
+            </div>
+
+            <div class="pillar-card">
+              <div class="pillar-head">
+                <span>💵 Value for Money</span>
+                <b id="pillar-val-score">-</b>
+              </div>
+              <p id="pillar-val-note" class="pillar-note">Not specified</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dishes, Highlights, Complaints & Action Items -->
+        <div class="detail-section">
+          <div class="tags-columns">
+            <div>
+              <h5 class="col-title text-green">&check; Customer Highlights</h5>
+              <ul id="modal-highlights-list" class="insights-list">
+                <li>None</li>
+              </ul>
+            </div>
+
+            <div>
+              <h5 class="col-title text-red">&times; Complaints & Pain Points</h5>
+              <ul id="modal-complaints-list" class="insights-list">
+                <li>None</li>
+              </ul>
+            </div>
+          </div>
+
+          <div style="margin-top: 18px;">
+            <h5 class="col-title text-accent">🍜 Dishes & Menu Items Mentioned</h5>
+            <div id="modal-dishes-wrap" class="tags-wrap">
+              <span class="tag">None</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 18px;">
+            <h5 class="col-title text-yellow">💡 Action Items for Restaurant Owner</h5>
+            <ul id="modal-actions-list" class="insights-list action-items">
+              <li>None</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .app-container {
+    padding-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--text-main);
+  }
+
+  .breadcrumb .active {
+    color: var(--accent-primary);
+    font-weight: 600;
+  }
+
+  .page-header h1 {
+    font-size: clamp(24px, 3.5vw, 34px);
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--text-muted);
+    max-width: 720px;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Guide Box */
+  .guide-box {
+    padding: 24px;
+    background: rgba(15, 23, 20, 0.92);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .guide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .guide-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .guide-icon {
+    font-size: 20px;
+  }
+
+  .close-guide-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 24px;
+    cursor: pointer;
+  }
+
+  .guide-steps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .guide-step-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 18px;
+  }
+
+  .step-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--accent-primary);
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .guide-step-card h4 {
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+
+  .guide-step-card p {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .guide-list {
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .text-link {
+    color: var(--accent-primary);
+    text-decoration: underline;
+  }
+
+  /* Toast Banner */
+  .toast-banner {
+    padding: 12px 18px;
+    border-radius: var(--radius-sm);
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #a7f3d0;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .toast-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  /* KPI Grid */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 16px;
+  }
+
+  .kpi-card {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .kpi-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+  }
+
+  .kpi-value-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 8px 0;
+  }
+
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 800;
+    font-family: var(--font-heading);
+    color: #ffffff;
+    line-height: 1;
+  }
+
+  .kpi-icon {
+    font-size: 22px;
+    opacity: 0.6;
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .text-accent {
+    color: var(--accent-primary);
+  }
+  .text-amber {
+    color: var(--color-neutral);
+  }
+  .text-yellow {
+    color: #fbbf24;
+  }
+  .text-green {
+    color: var(--color-positive);
+  }
+  .text-red {
+    color: var(--color-negative);
+  }
+
+  /* Sentiment Mini Bar */
+  .sentiment-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .sentiment-bar {
+    height: 8px;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    display: flex;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .bar-fill.pos {
+    background: var(--color-positive);
+  }
+  .bar-fill.neu {
+    background: var(--color-neutral);
+  }
+  .bar-fill.neg {
+    background: var(--color-negative);
+  }
+
+  .sentiment-counts {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+
+  /* Control Panel */
+  .control-panel {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 28px;
+    padding: 24px;
+    border: 1px solid var(--border-glow);
+  }
+
+  @media (max-width: 860px) {
+    .control-panel {
+      grid-template-columns: 1fr;
+    }
+    .panel-divider {
+      display: none;
+    }
+  }
+
+  .panel-divider {
+    width: 1px;
+    background: var(--border-subtle);
+  }
+
+  .panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .step-pill {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-primary);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+  }
+
+  .section-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .sync-form-row, .classify-form-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .limit-select {
+    width: 110px;
+  }
+
+  .batch-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    flex-wrap: wrap;
+  }
+
+  .search-wrap {
+    flex: 1;
+    min-width: 240px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 12px;
+    color: var(--text-dim);
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .search-input:focus {
+    border-color: var(--accent-primary);
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .filter-select {
+    width: auto;
+    padding: 6px 10px;
+  }
+
+  /* View Switcher */
+  .view-toggle-group {
+    display: inline-flex;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .view-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .view-toggle-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .view-toggle-btn.active {
+    background: var(--accent-primary);
+    color: #042f2e;
+    font-weight: 700;
+  }
+
+  /* Card Pillars Strip */
+  .card-pillars-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+  }
+
+  .mini-score-chip {
+    font-size: 11px;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* Matrix Table */
+  .table-wrapper {
+    padding: 0;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .matrix-table th {
+    background: rgba(15, 23, 20, 0.9);
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+  }
+
+  .matrix-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: #e2e8f0;
+    vertical-align: middle;
+  }
+
+  .matrix-table tr:hover td {
+    background: rgba(16, 185, 129, 0.05);
+  }
+
+  .table-rest-title {
+    font-weight: 700;
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .table-rest-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .score-badge-num {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+
+  .score-high {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .score-mid {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .score-low {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .score-dim {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  /* Reviews Grid */
+  .reviews-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 20px;
+  }
+
+  .review-card {
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 16px;
+    transition: var(--transition);
+  }
+
+  .review-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .review-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .restaurant-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 2px;
+  }
+
+  .author-meta {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .rating-stars {
+    color: #fbbf24;
+    font-size: 13px;
+    margin-top: 4px;
+    letter-spacing: 2px;
+  }
+
+  .review-body-text {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .classification-highlight {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .summary-preview {
+    font-size: 13px;
+    font-style: italic;
+    color: #e2e8f0;
+  }
+
+  .dishes-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .dish-tag {
+    font-size: 11px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #a7f3d0;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .review-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .loading-state, .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* Modal Details */
+  .detail-panel {
+    max-width: 760px;
+  }
+
+  .detail-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .detail-section h4 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+
+  .rating-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .stars-display {
+    color: #fbbf24;
+    font-size: 18px;
+  }
+
+  .rating-badge {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .quote-text {
+    font-size: 14px;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.25);
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-primary);
+  }
+
+  .highlight-box {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+  }
+
+  .jev-metrics-card {
+    background: rgba(16, 185, 129, 0.06);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+  }
+
+  .jev-metrics-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+
+  .jev-model-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    color: #a7f3d0;
+    font-size: 13px;
+  }
+
+  .jev-quick-stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .stat-badge {
+    font-size: 12px;
+    padding: 3px 8px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 4px;
+    color: #f1f5f9;
+  }
+
+  .stat-badge b {
+    color: #34d399;
+  }
+
+  .jev-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .probs-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .prob-chip {
+    font-size: 11px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--text-muted);
+  }
+
+  .prob-chip b {
+    color: #6ee7b7;
+  }
+
+  .jev-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  .badge-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .summary-text {
+    font-size: 14px;
+    color: #f1f5f9;
+    font-weight: 500;
+  }
+
+  .pillars-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .pillar-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+  }
+
+  .pillar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .pillar-note {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+
+  .tags-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 600px) {
+    .tags-columns {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .col-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .insights-list {
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .action-items li {
+    color: #fde68a;
+  }
+
+  .tags-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+</style>
+
+<script>
+  // Frontend State and API Handlers
+  let currentReviews: any[] = [];
+
+  function getSessionCreds() {
+    try {
+      const raw = sessionStorage.getItem('jev_session_credentials');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function showToast(message: string, isError = false) {
+    const banner = document.getElementById('toast-banner');
+    const msg = document.getElementById('toast-message');
+    if (!banner || !msg) return;
+
+    msg.textContent = message;
+    banner.style.display = 'flex';
+    if (isError) {
+      banner.style.background = 'rgba(244, 63, 94, 0.15)';
+      banner.style.borderColor = 'rgba(244, 63, 94, 0.35)';
+      banner.style.color = '#fecdd3';
+    } else {
+      banner.style.background = 'rgba(16, 185, 129, 0.15)';
+      banner.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+      banner.style.color = '#a7f3d0';
+    }
+
+    setTimeout(() => {
+      if (banner) banner.style.display = 'none';
+    }, 6000);
+  }
+
+  async function loadReviews() {
+    const creds = getSessionCreds();
+    const status = (document.getElementById('filter-status') as HTMLSelectElement)?.value || 'all';
+    const sentiment = (document.getElementById('filter-sentiment') as HTMLSelectElement)?.value || 'all';
+    const search = (document.getElementById('filter-search-input') as HTMLInputElement)?.value || '';
+
+    try {
+      const res = await fetch('/api/reviews/list', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-supabase-url': creds.supabaseUrl || '',
+          'x-supabase-key': creds.supabaseKey || '',
+        },
+        body: JSON.stringify({
+          status,
+          sentiment,
+          restaurantName: search,
+          limit: 100,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        renderReviews([], data.error || 'Failed to load reviews from Supabase.');
+        return;
+      }
+
+      currentReviews = data.reviews || [];
+      renderStats(data.summary || {});
+      renderReviews(currentReviews);
+    } catch (err: any) {
+      renderReviews([], `Connection Error: ${err.message}. Please verify your Supabase URL & Key in Session Settings.`);
+    }
+  }
+
+  function renderStats(summary: any) {
+    const total = summary.total || 0;
+    const processed = summary.processed || 0;
+    const pending = summary.pending || 0;
+    const avgRating = summary.avgRating || '0.0';
+    const pos = summary.positiveCount || 0;
+    const neu = summary.neutralCount || 0;
+    const neg = summary.negativeCount || 0;
+
+    const elTotal = document.getElementById('stat-total');
+    const elProc = document.getElementById('stat-processed');
+    const elProcPct = document.getElementById('stat-processed-pct');
+    const elPending = document.getElementById('stat-pending');
+    const elRating = document.getElementById('stat-rating');
+    const elPos = document.getElementById('count-pos');
+    const elNeu = document.getElementById('count-neu');
+    const elNeg = document.getElementById('count-neg');
+
+    if (elTotal) elTotal.textContent = String(total);
+    if (elProc) elProc.textContent = String(processed);
+    if (elProcPct) {
+      const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+      elProcPct.textContent = `${pct}% processed`;
+    }
+    if (elPending) elPending.textContent = String(pending);
+    if (elRating) elRating.textContent = String(avgRating);
+
+    if (elPos) elPos.textContent = String(pos);
+    if (elNeu) elNeu.textContent = String(neu);
+    if (elNeg) elNeg.textContent = String(neg);
+
+    const barTotal = pos + neu + neg;
+    const barPos = document.getElementById('bar-pos');
+    const barNeu = document.getElementById('bar-neu');
+    const barNeg = document.getElementById('bar-neg');
+
+    if (barTotal > 0) {
+      if (barPos) barPos.style.width = `${(pos / barTotal) * 100}%`;
+      if (barNeu) barNeu.style.width = `${(neu / barTotal) * 100}%`;
+      if (barNeg) barNeg.style.width = `${(neg / barTotal) * 100}%`;
+    } else {
+      if (barPos) barPos.style.width = '33%';
+      if (barNeu) barNeu.style.width = '33%';
+      if (barNeg) barNeg.style.width = '34%';
+    }
+
+    // Update Jev Speed & Cost metric KPI
+    const jevItems = currentReviews.filter((r) => r.classification?.jevMeta);
+    const elJevSpeed = document.getElementById('stat-jev-speed');
+    const elJevCost = document.getElementById('stat-jev-cost');
+    if (jevItems.length > 0) {
+      const avgLat = Math.round(
+        jevItems.reduce((acc, r) => acc + (r.classification.jevMeta.responseTimeMs || 250), 0) / jevItems.length
+      );
+      const totalCost = jevItems.reduce((acc, r) => acc + (r.classification.jevMeta.costUsd || 0.000017), 0);
+      const totalToks = jevItems.reduce((acc, r) => acc + (r.classification.jevMeta.inputTokens || 400), 0);
+      if (elJevSpeed) elJevSpeed.textContent = `~${avgLat}ms`;
+      if (elJevCost) elJevCost.textContent = `$${totalCost.toFixed(5)} total (${totalToks} toks, $0.042/Mtok)`;
+    } else {
+      if (elJevSpeed) elJevSpeed.textContent = '~280ms';
+      if (elJevCost) elJevCost.textContent = 'Est. ~$0.000018 / rev ($0.042/Mtok)';
+    }
+  }
+
+  function getScoreBadgeHtml(scoreVal: number | undefined) {
+    if (!scoreVal || scoreVal === 0) return '<span class="score-dim">-</span>';
+    const cls = scoreVal >= 4 ? 'score-high' : scoreVal >= 3 ? 'score-mid' : 'score-low';
+    return `<span class="score-badge-num ${cls}">${scoreVal}/5</span>`;
+  }
+
+  function renderReviews(reviews: any[], errorMsg?: string) {
+    const container = document.getElementById('reviews-container');
+    const tableBody = document.getElementById('matrix-table-body');
+    if (!container) return;
+
+    if (errorMsg) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div style="font-size: 32px;">⚠️</div>
+          <h4>Database Connection Notice</h4>
+          <p style="max-width: 500px;">${errorMsg}</p>
+          <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; justify-content: center;">
+            <button class="btn btn-primary btn-sm" onclick="window.openKeyModal && window.openKeyModal()">
+              Configure Credentials
+            </button>
+            <button id="load-sample-notice-btn" class="btn btn-secondary btn-sm">
+              Explore Demo Mode (Sample Data)
+            </button>
+          </div>
+        </div>
+      `;
+      if (tableBody) tableBody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 24px; color: var(--text-dim);">${escapeHtml(errorMsg)}</td></tr>`;
+      const sampleBtn = document.getElementById('load-sample-notice-btn');
+      if (sampleBtn) sampleBtn.addEventListener('click', loadSampleReviews);
+      return;
+    }
+
+    if (reviews.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div style="font-size: 36px;">🍽️</div>
+          <h4>No Reviews Ingested Yet</h4>
+          <p style="max-width: 460px;">Sync reviews from an Apify Google Scraper Dataset using the control bar above, or load sample reviews to test the LLM classifier immediately.</p>
+          <button id="load-sample-btn" class="btn btn-secondary btn-sm" style="margin-top: 8px;">
+            Load Mock Restaurant Reviews (Demo)
+          </button>
+        </div>
+      `;
+      if (tableBody) tableBody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 24px; color: var(--text-dim);">No reviews to display. Sync from Apify or click "Load Mock Restaurant Reviews (Demo)".</td></tr>`;
+      const sampleBtn = document.getElementById('load-sample-btn');
+      if (sampleBtn) sampleBtn.addEventListener('click', loadSampleReviews);
+      return;
+    }
+
+    // 1. Render Cards View
+    container.innerHTML = reviews
+      .map((r) => {
+        const ratingStars = '★'.repeat(Math.round(r.rating || 5)) + '☆'.repeat(5 - Math.round(r.rating || 5));
+        const sentimentPillClass =
+          r.sentiment === 'positive'
+            ? 'pill-positive'
+            : r.sentiment === 'negative'
+              ? 'pill-negative'
+              : r.sentiment === 'neutral'
+                ? 'pill-neutral'
+                : 'pill-pending';
+
+        const classification = r.classification || {};
+        const summary = classification.oneSentenceSummary || null;
+        const dishes = Array.isArray(classification.dishesMentioned) ? classification.dishesMentioned : [];
+        const cats = classification.categories || {};
+        const jevMeta = classification.jevMeta;
+        const hasAnyPillars = cats.foodQuality?.rating || cats.service?.rating || cats.cleanliness?.rating || cats.atmosphere?.rating || cats.valueForMoney?.rating;
+
+        return `
+          <div class="glass-card review-card" data-id="${r.id}">
+            <div class="review-head">
+              <div>
+                <h4 class="restaurant-title">${escapeHtml(r.restaurant_name)}</h4>
+                <div class="author-meta">
+                  ${escapeHtml(r.reviewer_name || 'Google User')} &bull; ${r.published_at ? new Date(r.published_at).toLocaleDateString() : 'Recent'}
+                </div>
+                <div class="rating-stars">${ratingStars}</div>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+                <span class="pill ${sentimentPillClass}">
+                  ${r.sentiment || r.status}
+                </span>
+                ${
+                  jevMeta
+                    ? `<span class="jev-card-badge" title="TypeSafe System One (${escapeHtml(jevMeta.model || 'jev-latest')}): ${jevMeta.inputTokens || 0} tokens in, 0 tokens out">⚡ ${jevMeta.responseTimeMs ? jevMeta.responseTimeMs + 'ms' : '< 300ms'} &bull; ${jevMeta.costFormatted || '$0.000017'}</span>`
+                    : ''
+                }
+              </div>
+            </div>
+
+            <p class="review-body-text">${escapeHtml(r.review_text || '(No text provided)')}</p>
+
+            ${
+              hasAnyPillars
+                ? `
+              <div class="card-pillars-strip">
+                <span class="mini-score-chip" title="Food Quality: ${escapeHtml(cats.foodQuality?.note || '')}">🍽️ Food: ${cats.foodQuality?.rating ? cats.foodQuality.rating + '/5' : '-'}</span>
+                <span class="mini-score-chip" title="Service: ${escapeHtml(cats.service?.note || '')}">🛎️ Svc: ${cats.service?.rating ? cats.service.rating + '/5' : '-'}</span>
+                <span class="mini-score-chip" title="Cleanliness: ${escapeHtml(cats.cleanliness?.note || '')}">✨ Clean: ${cats.cleanliness?.rating ? cats.cleanliness.rating + '/5' : '-'}</span>
+                <span class="mini-score-chip" title="Atmosphere: ${escapeHtml(cats.atmosphere?.note || '')}">🕯️ Atmo: ${cats.atmosphere?.rating ? cats.atmosphere.rating + '/5' : '-'}</span>
+                <span class="mini-score-chip" title="Value: ${escapeHtml(cats.valueForMoney?.note || '')}">💵 Val: ${cats.valueForMoney?.rating ? cats.valueForMoney.rating + '/5' : '-'}</span>
+              </div>
+            `
+                : ''
+            }
+
+            ${
+              summary
+                ? `
+              <div class="classification-highlight">
+                <span class="summary-preview">"${escapeHtml(summary)}"</span>
+                ${
+                  dishes.length > 0
+                    ? `
+                  <div class="dishes-pills">
+                    ${dishes
+                      .slice(0, 3)
+                      .map((d: string) => `<span class="dish-tag">🍜 ${escapeHtml(d)}</span>`)
+                      .join('')}
+                  </div>
+                `
+                    : ''
+                }
+              </div>
+            `
+                : ''
+            }
+
+            <div class="review-footer">
+              <span style="font-size: 11px; color: var(--text-dim);">ID: ${r.id.slice(0, 10)}...</span>
+              <div style="display: flex; gap: 8px;">
+                ${
+                  r.status === 'processed'
+                    ? `<button class="btn btn-secondary btn-sm inspect-btn" data-id="${r.id}">Inspect Jev / LLM</button>`
+                    : `<button class="btn btn-secondary btn-sm classify-single-btn" data-id="${r.id}">${r.status === 'error' ? 'Retry with Jev' : 'Classify with Jev'}</button>`
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    // 2. Render Matrix Table View
+    if (tableBody) {
+      tableBody.innerHTML = reviews
+        .map((r) => {
+          const classification = r.classification || {};
+          const cats = classification.categories || {};
+          const jevMeta = classification.jevMeta;
+          const sentimentPillClass =
+            r.sentiment === 'positive'
+              ? 'pill-positive'
+              : r.sentiment === 'negative'
+                ? 'pill-negative'
+                : r.sentiment === 'neutral'
+                  ? 'pill-neutral'
+                  : 'pill-pending';
+
+          const scoreVal = classification.sentimentScore || r.sentiment_score;
+
+          return `
+            <tr>
+              <td>
+                <div class="table-rest-title">${escapeHtml(r.restaurant_name)}</div>
+                <div class="table-rest-meta">${escapeHtml(r.reviewer_name || 'Google User')} &bull; ${r.published_at ? new Date(r.published_at).toLocaleDateString() : 'Recent'}</div>
+              </td>
+              <td>
+                <span style="color: #facc15; font-weight: 600;">★ ${r.rating ? Number(r.rating).toFixed(1) : '-'}</span>
+              </td>
+              <td>
+                <span class="pill ${sentimentPillClass}">${r.sentiment || r.status}</span>
+              </td>
+              <td>
+                ${scoreVal ? `<b>${Number(scoreVal).toFixed(1)}</b> <span class="score-dim">/ 5.0</span>` : '<span class="score-dim">-</span>'}
+              </td>
+              <td>${getScoreBadgeHtml(cats.foodQuality?.rating)}</td>
+              <td>${getScoreBadgeHtml(cats.service?.rating)}</td>
+              <td>${getScoreBadgeHtml(cats.cleanliness?.rating)}</td>
+              <td>${getScoreBadgeHtml(cats.atmosphere?.rating)}</td>
+              <td>${getScoreBadgeHtml(cats.valueForMoney?.rating)}</td>
+              <td>
+                ${
+                  jevMeta
+                    ? `<span class="jev-card-badge" title="TypeSafe System One: ${jevMeta.inputTokens || 0} tokens in">⚡ ${jevMeta.responseTimeMs ? jevMeta.responseTimeMs + 'ms' : '< 300ms'} &bull; ${jevMeta.costFormatted || '$0.00004'}</span>`
+                    : '<span class="score-dim">-</span>'
+                }
+              </td>
+              <td>
+                ${
+                  r.status === 'processed'
+                    ? `<button class="btn btn-secondary btn-sm inspect-btn" data-id="${r.id}" style="padding: 4px 10px; font-size: 11px;">Inspect</button>`
+                    : `<button class="btn btn-primary btn-sm classify-single-btn" data-id="${r.id}" style="padding: 4px 10px; font-size: 11px;">Classify</button>`
+                }
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+    }
+
+    // Attach inspect & classify handlers across both cards and table
+    document.querySelectorAll('.inspect-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = (btn as HTMLElement).dataset.id;
+        const found = currentReviews.find((r) => r.id === id);
+        if (found) openDetailModal(found);
+      });
+    });
+
+    document.querySelectorAll('.classify-single-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = (btn as HTMLElement).dataset.id;
+        if (id) await classifyBatch(id);
+      });
+    });
+  }
+
+  function escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function openDetailModal(review: any) {
+    const modal = document.getElementById('detail-modal-overlay');
+    if (!modal) return;
+
+    const restName = document.getElementById('modal-rest-name');
+    const reviewerMeta = document.getElementById('modal-reviewer-meta');
+    const stars = document.getElementById('modal-stars');
+    const ratingNum = document.getElementById('modal-rating-num');
+    const reviewText = document.getElementById('modal-review-text');
+
+    const sentimentPill = document.getElementById('modal-sentiment-pill');
+    const scorePill = document.getElementById('modal-score-pill');
+    const summaryText = document.getElementById('modal-summary-text');
+
+    if (restName) restName.textContent = review.restaurant_name;
+    if (reviewerMeta)
+      reviewerMeta.textContent = `${review.reviewer_name || 'Google User'} • ${review.published_at ? new Date(review.published_at).toLocaleDateString() : 'Scraped'}`;
+    if (stars)
+      stars.textContent =
+        '★'.repeat(Math.round(review.rating || 5)) + '☆'.repeat(5 - Math.round(review.rating || 5));
+    if (ratingNum) ratingNum.textContent = review.rating ? `${review.rating} / 5.0` : 'No rating';
+    if (reviewText) reviewText.textContent = review.review_text || '(No text provided)';
+
+    const cls = review.classification || {};
+    if (sentimentPill) {
+      sentimentPill.textContent = (cls.overallSentiment || review.sentiment || 'Pending').toUpperCase();
+      sentimentPill.className = `pill ${review.sentiment === 'positive' ? 'pill-positive' : review.sentiment === 'negative' ? 'pill-negative' : 'pill-neutral'}`;
+    }
+    if (scorePill) {
+      scorePill.textContent = `Score: ${cls.sentimentScore || review.sentiment_score || review.rating || '-'}/5.0`;
+    }
+    if (summaryText) {
+      summaryText.textContent = cls.oneSentenceSummary || 'Not classified yet. Click Run Classifier to analyze.';
+    }
+
+    // Jev System One Telemetry Box
+    const jevBox = document.getElementById('modal-jev-box');
+    if (jevBox) {
+      if (cls.jevMeta) {
+        jevBox.style.display = 'block';
+        const modelEl = document.getElementById('modal-jev-model');
+        const latEl = document.getElementById('modal-jev-latency');
+        const costEl = document.getElementById('modal-jev-cost');
+        const confEl = document.getElementById('modal-jev-conf');
+        const probsGrid = document.getElementById('modal-jev-probs');
+
+        if (modelEl) modelEl.textContent = `Jev System One (${cls.jevMeta.model || 'jev-latest'})`;
+        if (latEl) latEl.textContent = cls.jevMeta.responseTimeMs ? `${cls.jevMeta.responseTimeMs}ms` : '< 300ms';
+        if (costEl) costEl.textContent = `${cls.jevMeta.costFormatted || '$0.000018'} (${cls.jevMeta.inputTokens || 0} in / 0 out)`;
+        if (confEl) {
+          let confStr = '98%';
+          if (typeof cls.jevMeta.confidence === 'number') {
+            confStr = `${Math.round(cls.jevMeta.confidence * 100)}%`;
+          } else if (cls.jevMeta.confidence && typeof cls.jevMeta.confidence === 'object') {
+            const vals = Object.values(cls.jevMeta.confidence).filter((n): n is number => typeof n === 'number');
+            if (vals.length > 0) {
+              const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+              confStr = `${Math.round(avg * 100)}%`;
+            }
+          }
+          confEl.textContent = confStr;
+        }
+        if (probsGrid && cls.jevMeta.probabilities) {
+          probsGrid.innerHTML = Object.entries(cls.jevMeta.probabilities)
+            .map(([k, v]) => {
+              let valText = '';
+              if (typeof v === 'number') {
+                valText = v <= 1 ? `${(v * 100).toFixed(1)}%` : String(v);
+              } else if (typeof v === 'object' && v !== null) {
+                valText = Object.entries(v)
+                  .map(([subK, subV]) => `${subK}: ${typeof subV === 'number' ? Math.round(subV * 100) + '%' : subV}`)
+                  .join(', ');
+              } else {
+                valText = String(v);
+              }
+              return `<span class="prob-chip">${escapeHtml(k.replace(/_/g, ' '))}: <b>${escapeHtml(valText)}</b></span>`;
+            })
+            .join('');
+        }
+      } else {
+        jevBox.style.display = 'none';
+      }
+    }
+
+    // Pillars
+    const cats = cls.categories || {};
+    setCategoryPillar('food', cats.foodQuality);
+    setCategoryPillar('service', cats.service);
+    setCategoryPillar('clean', cats.cleanliness);
+    setCategoryPillar('atmo', cats.atmosphere);
+    setCategoryPillar('val', cats.valueForMoney);
+
+    // Highlights
+    const hlList = document.getElementById('modal-highlights-list');
+    if (hlList) {
+      const hls = cls.positiveHighlights || [];
+      hlList.innerHTML = hls.length > 0 ? hls.map((h: string) => `<li>${escapeHtml(h)}</li>`).join('') : '<li>None noted.</li>';
+    }
+
+    // Complaints
+    const compList = document.getElementById('modal-complaints-list');
+    if (compList) {
+      const comps = cls.criticalComplaints || [];
+      compList.innerHTML = comps.length > 0 ? comps.map((c: string) => `<li>${escapeHtml(c)}</li>`).join('') : '<li>None noted.</li>';
+    }
+
+    // Dishes
+    const dishesWrap = document.getElementById('modal-dishes-wrap');
+    if (dishesWrap) {
+      const dishes = cls.dishesMentioned || [];
+      dishesWrap.innerHTML = dishes.length > 0 ? dishes.map((d: string) => `<span class="dish-tag">🍜 ${escapeHtml(d)}</span>`).join('') : '<span class="tag">None mentioned</span>';
+    }
+
+    // Action Items
+    const actionsList = document.getElementById('modal-actions-list');
+    if (actionsList) {
+      const acts = cls.actionItemsForOwner || [];
+      actionsList.innerHTML = acts.length > 0 ? acts.map((a: string) => `<li>${escapeHtml(a)}</li>`).join('') : '<li>Continue maintaining current quality standards.</li>';
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  function setCategoryPillar(prefix: string, item: any) {
+    const scoreEl = document.getElementById(`pillar-${prefix}-score`);
+    const noteEl = document.getElementById(`pillar-${prefix}-note`);
+    if (!scoreEl || !noteEl) return;
+
+    if (!item || !item.rating) {
+      scoreEl.textContent = '-';
+      noteEl.textContent = 'Not mentioned';
+    } else {
+      scoreEl.textContent = `${item.rating}/5`;
+      noteEl.textContent = item.note || 'Assessed';
+    }
+  }
+
+  async function syncFromApify() {
+    const creds = getSessionCreds();
+    const datasetInput = document.getElementById('apify-dataset-input') as HTMLInputElement;
+    const limitSelect = document.getElementById('apify-sync-limit') as HTMLSelectElement;
+    const syncBtn = document.getElementById('sync-apify-btn') as HTMLButtonElement;
+
+    const datasetId = datasetInput?.value.trim() || creds.apifyDataset;
+    const limit = Number(limitSelect?.value) || 50;
+
+    if (!datasetId) {
+      showToast('Please provide an Apify Dataset ID to sync reviews.', true);
+      if (datasetInput) datasetInput.focus();
+      return;
+    }
+
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = `<span class="pulse-dot"></span> Syncing...`;
+
+    try {
+      const res = await fetch('/api/apify/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          datasetId,
+          limit,
+          apifyToken: creds.apifyToken,
+          supabaseUrl: creds.supabaseUrl,
+          supabaseKey: creds.supabaseKey,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(`Sync Failed: ${data.error}`, true);
+      } else {
+        showToast(data.message || `Successfully synced ${data.synced} reviews!`);
+        await loadReviews();
+      }
+    } catch (err: any) {
+      showToast(`Network error syncing Apify: ${err.message}`, true);
+    } finally {
+      syncBtn.disabled = false;
+      syncBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Sync to Supabase
+      `;
+    }
+  }
+
+  async function classifyBatch(singleId?: string) {
+    const creds = getSessionCreds();
+    const batchSelect = document.getElementById('classify-batch-size') as HTMLSelectElement;
+    const runBtn = document.getElementById('run-classify-btn') as HTMLButtonElement;
+
+    const batchSize = Number(batchSelect?.value) || 5;
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = `<span class="pulse-dot"></span> Classifying with LLM...`;
+
+    try {
+      const res = await fetch('/api/reviews/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewId: singleId || undefined,
+          batchSize,
+          supabaseUrl: creds.supabaseUrl,
+          supabaseKey: creds.supabaseKey,
+          llmProvider: creds.llmProvider || 'jev',
+          llmApiKey: creds.llmApiKey || creds.jevApiKey,
+          llmModel: creds.llmModel || 'jev-latest',
+          jevApiKey: creds.jevApiKey || creds.llmApiKey,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(`LLM Classification Error: ${data.error}`, true);
+      } else {
+        showToast(data.message || `Classified ${data.processedCount} reviews!`);
+        await loadReviews();
+      }
+    } catch (err: any) {
+      showToast(`Network error: ${err.message}`, true);
+    } finally {
+      runBtn.disabled = false;
+      runBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Run Classifier
+      `;
+    }
+  }
+
+  async function loadSampleReviews() {
+    showToast('Loading mock restaurant reviews into session/Supabase...');
+    const sampleReviews = [
+      {
+        id: 'sample_01',
+        restaurant_name: 'Trattoria Bella Roma',
+        reviewer_name: 'Elena Rostova',
+        rating: 5,
+        review_text: 'Absolutely blown away by the handmade cacio e pepe and truffle arancini! The pasta was perfectly al dente. Atmosphere was warm and romantic. The waitstaff made us feel like family. Will definitely return next week!',
+        published_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+        status: 'processed',
+        sentiment: 'positive',
+        sentiment_score: 4.9,
+        classification: {
+          overallSentiment: 'positive',
+          sentimentScore: 4.9,
+          oneSentenceSummary: 'Exemplary dining experience with standout handmade pasta, cozy romantic ambience, and attentive hospitality.',
+          categories: {
+            foodQuality: { rating: 5, note: 'Exceptional handmade cacio e pepe and truffle arancini; perfectly al dente.' },
+            service: { rating: 5, note: 'Attentive waitstaff made the table feel like family.' },
+            cleanliness: { rating: 5, note: 'Pristine dining room.' },
+            atmosphere: { rating: 5, note: 'Warm and romantic Italian trattoria ambience.' },
+            valueForMoney: { rating: 4, note: 'High quality justified the pricing.' },
+          },
+          dishesMentioned: ['Handmade Cacio e Pepe', 'Truffle Arancini'],
+          positiveHighlights: ['Flawless pasta texture', 'Generous hospitality', 'Romantic vibe'],
+          criticalComplaints: [],
+          actionItemsForOwner: ['Maintain supplier consistency for fresh truffles and recognize front-of-house staff for warm hospitality.'],
+          jevMeta: {
+            model: 'jev-latest',
+            responseTimeMs: 242,
+            inputTokens: 412,
+            outputTokens: 0,
+            costUsd: 0.0000173,
+            costFormatted: '$0.000017',
+            confidence: 0.985,
+            probabilities: {
+              overall_sentiment: 'positive (99.4%)',
+              food_quality: '5/5 score',
+              service_quality: '5/5 score',
+              cleanliness: '5/5 score',
+              atmosphere: '5/5 score',
+              value_for_money: '4/5 score',
+              recommends: '99.1% likely',
+              has_complaints: '0.4% likely',
+            },
+          },
+        },
+      },
+      {
+        id: 'sample_02',
+        restaurant_name: 'Trattoria Bella Roma',
+        reviewer_name: 'Marcus Vance',
+        rating: 2,
+        review_text: 'Waited 45 minutes for our table even though we had a 7:30 reservation. When we finally sat down, our waiter ignored us for 20 minutes. The spicy rigatoni was good, but the tiramisu was soggy and way overpriced. Restrooms were messy.',
+        published_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+        status: 'processed',
+        sentiment: 'negative',
+        sentiment_score: 2.1,
+        classification: {
+          overallSentiment: 'negative',
+          sentimentScore: 2.1,
+          oneSentenceSummary: 'Frustrating evening spoiled by excessive seating delays, inattentive service, messy restrooms, and disappointing dessert.',
+          categories: {
+            foodQuality: { rating: 3, note: 'Spicy rigatoni was good, but tiramisu was soggy.' },
+            service: { rating: 1, note: '45-minute delay for reserved table and 20 minutes before server greeting.' },
+            cleanliness: { rating: 2, note: 'Messy restrooms during dinner rush.' },
+            atmosphere: { rating: 3, note: 'Noisy and hectic waiting area.' },
+            valueForMoney: { rating: 2, note: 'Overpriced dessert given poor quality.' },
+          },
+          dishesMentioned: ['Spicy Rigatoni', 'Tiramisu'],
+          positiveHighlights: ['Spicy rigatoni flavor was satisfactory.'],
+          criticalComplaints: ['45-min reservation delay', 'Ignored by waiter for 20 minutes', 'Soggy tiramisu', 'Messy restrooms'],
+          actionItemsForOwner: ['Implement strict table turnaround pacing on reservation software and schedule hourly restroom checks.'],
+          jevMeta: {
+            model: 'jev-latest',
+            responseTimeMs: 271,
+            inputTokens: 438,
+            outputTokens: 0,
+            costUsd: 0.0000184,
+            costFormatted: '$0.000018',
+            confidence: 0.968,
+            probabilities: {
+              overall_sentiment: 'negative (97.8%)',
+              food_quality: '3/5 score',
+              service_quality: '1/5 score',
+              cleanliness: '2/5 score',
+              atmosphere: '3/5 score',
+              value_for_money: '2/5 score',
+              recommends: '1.2% likely',
+              has_complaints: '98.6% likely',
+            },
+          },
+        },
+      },
+      {
+        id: 'sample_03',
+        restaurant_name: 'Kyoto Ramen Bar',
+        reviewer_name: 'Samantha Chen',
+        rating: 4,
+        review_text: 'The tonkotsu broth was rich and creamy, chashu pork melted in your mouth! Gyoza was crispy on the bottom. Music was a bit too loud to have a conversation, but the food speaks for itself.',
+        published_at: new Date(Date.now() - 86400000 * 8).toISOString(),
+        status: 'pending',
+      },
+      {
+        id: 'sample_04',
+        restaurant_name: 'The Rustic Grill',
+        reviewer_name: 'David Miller',
+        rating: 1,
+        review_text: 'Terrible experience. Ordered a medium-rare ribeye and it came out charred and completely dry. When I sent it back, the manager gave me an attitude. Over $120 for two people and we left hungry.',
+        published_at: new Date(Date.now() - 86400000 * 12).toISOString(),
+        status: 'pending',
+      },
+    ];
+
+    const creds = getSessionCreds();
+    try {
+      // Direct upsert via API
+      const res = await fetch('/api/reviews/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supabaseUrl: creds.supabaseUrl,
+          supabaseKey: creds.supabaseKey,
+        }),
+      });
+
+      // If Supabase is not yet connected on the server, display sample reviews locally in memory!
+      if (!res.ok) {
+        currentReviews = sampleReviews;
+        renderReviews(sampleReviews);
+        renderStats({
+          total: 4,
+          processed: 2,
+          pending: 2,
+          avgRating: '3.0',
+          positiveCount: 1,
+          neutralCount: 0,
+          negativeCount: 1,
+        });
+        showToast('Sample reviews loaded in memory! Click "Inspect LLM" to view deep operational breakdowns.');
+        return;
+      }
+
+      // If Supabase is connected, call sync or list
+      showToast('Loaded demo reviews. Connect your LLM API Key to run classification!');
+      await loadReviews();
+    } catch {
+      currentReviews = sampleReviews;
+      renderReviews(sampleReviews);
+    }
+  }
+
+  // Bind Listeners
+  document.addEventListener('DOMContentLoaded', () => {
+    // Fill pre-saved dataset ID if present
+    const creds = getSessionCreds();
+    const dsInput = document.getElementById('apify-dataset-input') as HTMLInputElement;
+    if (dsInput && creds.apifyDataset) dsInput.value = creds.apifyDataset;
+
+    // Guide toggle
+    const guideBox = document.getElementById('setup-guide-box');
+    const toggleGuideBtn = document.getElementById('toggle-guide-btn');
+    const closeGuideBtn = document.getElementById('close-guide-btn');
+
+    if (toggleGuideBtn) {
+      toggleGuideBtn.addEventListener('click', () => {
+        if (guideBox) {
+          guideBox.style.display = guideBox.style.display === 'none' ? 'block' : 'none';
+        }
+      });
+    }
+
+    if (closeGuideBtn) {
+      closeGuideBtn.addEventListener('click', () => {
+        if (guideBox) guideBox.style.display = 'none';
+      });
+    }
+
+    // Detail Modal close
+    const detailModal = document.getElementById('detail-modal-overlay');
+    const closeDetail = document.getElementById('close-detail-modal');
+    if (closeDetail && detailModal) {
+      closeDetail.addEventListener('click', () => (detailModal.style.display = 'none'));
+      detailModal.addEventListener('click', (e) => {
+        if (e.target === detailModal) detailModal.style.display = 'none';
+      });
+    }
+
+    // Toast close
+    const toastClose = document.getElementById('toast-close');
+    const toastBanner = document.getElementById('toast-banner');
+    if (toastClose && toastBanner) {
+      toastClose.addEventListener('click', () => (toastBanner.style.display = 'none'));
+    }
+
+    // View Switcher (Cards vs Matrix Table)
+    const cardsContainer = document.getElementById('reviews-container');
+    const tableContainer = document.getElementById('reviews-table-container');
+    const btnCards = document.getElementById('view-mode-cards');
+    const btnTable = document.getElementById('view-mode-table');
+
+    btnCards?.addEventListener('click', () => {
+      btnCards.classList.add('active');
+      btnTable?.classList.remove('active');
+      if (cardsContainer) cardsContainer.style.display = 'grid';
+      if (tableContainer) tableContainer.style.display = 'none';
+    });
+
+    btnTable?.addEventListener('click', () => {
+      btnTable.classList.add('active');
+      btnCards?.classList.remove('active');
+      if (cardsContainer) cardsContainer.style.display = 'none';
+      if (tableContainer) tableContainer.style.display = 'block';
+    });
+
+    // Buttons
+    document.getElementById('sync-apify-btn')?.addEventListener('click', syncFromApify);
+    document.getElementById('run-classify-btn')?.addEventListener('click', () => classifyBatch());
+    document.getElementById('refresh-reviews-btn')?.addEventListener('click', loadReviews);
+
+    // Filters
+    document.getElementById('filter-status')?.addEventListener('change', loadReviews);
+    document.getElementById('filter-sentiment')?.addEventListener('change', loadReviews);
+    document.getElementById('filter-search-input')?.addEventListener('input', () => {
+      clearTimeout((window as any)._searchTimer);
+      (window as any)._searchTimer = setTimeout(loadReviews, 300);
+    });
+
+    // React to session keys updated
+    window.addEventListener('session-keys-updated', () => {
+      loadReviews();
+    });
+
+    // Initial load
+    loadReviews();
+  });
+</script>
