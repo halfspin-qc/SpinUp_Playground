@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ request }) => {
     const llmModel = (body.llmModel && String(body.llmModel).trim()) || undefined;
 
     const reviewId = body.reviewId;
-    const batchSize = Math.min(Number(body.batchSize) || 5, 20);
+    const batchSize = Math.min(Number(body.batchSize) || 5, 50);
 
     const client = getSupabaseClient(supabaseUrl, supabaseKey);
 

@@ -200,9 +200,10 @@ import Layout from '../layouts/Layout.astro';
           <div class="batch-select-wrap">
             <label for="classify-batch-size">Batch Size:</label>
             <select id="classify-batch-size" class="select-field">
-              <option value="3">3 reviews (Quick test)</option>
-              <option value="5" selected>5 reviews</option>
-              <option value="10">10 reviews</option>
+              <option value="5">5 reviews</option>
+              <option value="10" selected>10 reviews</option>
+              <option value="25">25 reviews</option>
+              <option value="50">50 reviews (Fast with Jev)</option>
             </select>
           </div>
           <button id="run-classify-btn" class="btn btn-primary" type="button">
@@ -1466,13 +1467,15 @@ import Layout from '../layouts/Layout.astro';
       .map((r) => {
         const ratingStars = '★'.repeat(Math.round(r.rating || 5)) + '☆'.repeat(5 - Math.round(r.rating || 5));
         const sentimentPillClass =
-          r.sentiment === 'positive'
-            ? 'pill-positive'
-            : r.sentiment === 'negative'
-              ? 'pill-negative'
-              : r.sentiment === 'neutral'
-                ? 'pill-neutral'
-                : 'pill-pending';
+          r.status === 'error'
+            ? 'pill-error'
+            : r.sentiment === 'positive'
+              ? 'pill-positive'
+              : r.sentiment === 'negative'
+                ? 'pill-negative'
+                : r.sentiment === 'neutral'
+                  ? 'pill-neutral'
+                  : 'pill-pending';
 
         const classification = r.classification || {};
         const summary = classification.oneSentenceSummary || null;
@@ -1492,8 +1495,8 @@ import Layout from '../layouts/Layout.astro';
                 <div class="rating-stars">${ratingStars}</div>
               </div>
               <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
-                <span class="pill ${sentimentPillClass}">
-                  ${r.sentiment || r.status}
+                <span class="pill ${sentimentPillClass}" title="${escapeHtml(r.raw_data?.classification_error || '')}">
+                  ${r.status === 'error' ? 'Error' : r.sentiment || r.status}
                 </span>
                 ${
                   jevMeta
@@ -1564,13 +1567,15 @@ import Layout from '../layouts/Layout.astro';
           const cats = classification.categories || {};
           const jevMeta = classification.jevMeta;
           const sentimentPillClass =
-            r.sentiment === 'positive'
-              ? 'pill-positive'
-              : r.sentiment === 'negative'
-                ? 'pill-negative'
-                : r.sentiment === 'neutral'
-                  ? 'pill-neutral'
-                  : 'pill-pending';
+            r.status === 'error'
+              ? 'pill-error'
+              : r.sentiment === 'positive'
+                ? 'pill-positive'
+                : r.sentiment === 'negative'
+                  ? 'pill-negative'
+                  : r.sentiment === 'neutral'
+                    ? 'pill-neutral'
+                    : 'pill-pending';
 
           const scoreVal = classification.sentimentScore || r.sentiment_score;
 
@@ -1584,7 +1589,7 @@ import Layout from '../layouts/Layout.astro';
                 <span style="color: #facc15; font-weight: 600;">★ ${r.rating ? Number(r.rating).toFixed(1) : '-'}</span>
               </td>
               <td>
-                <span class="pill ${sentimentPillClass}">${r.sentiment || r.status}</span>
+                <span class="pill ${sentimentPillClass}" title="${escapeHtml(r.raw_data?.classification_error || '')}">${r.status === 'error' ? 'Error' : r.sentiment || r.status}</span>
               </td>
               <td>
                 ${scoreVal ? `<b>${Number(scoreVal).toFixed(1)}</b> <span class="score-dim">/ 5.0</span>` : '<span class="score-dim">-</span>'}
@@ -1605,7 +1610,7 @@ import Layout from '../layouts/Layout.astro';
                 ${
                   r.status === 'processed'
                     ? `<button class="btn btn-secondary btn-sm inspect-btn" data-id="${r.id}" style="padding: 4px 10px; font-size: 11px;">Inspect</button>`
-                    : `<button class="btn btn-primary btn-sm classify-single-btn" data-id="${r.id}" style="padding: 4px 10px; font-size: 11px;">Classify</button>`
+                    : `<button class="btn ${r.status === 'error' ? 'btn-secondary' : 'btn-primary'} btn-sm classify-single-btn" data-id="${r.id}" style="padding: 4px 10px; font-size: 11px;">${r.status === 'error' ? 'Retry' : 'Classify'}</button>`
                 }
               </td>
             </tr>

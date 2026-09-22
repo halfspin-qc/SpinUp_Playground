@@ -176,6 +176,12 @@ a {
   border: 1px solid rgba(244, 63, 94, 0.3);
 }
 
+.pill-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
 .pill-pending {
   background: rgba(148, 163, 184, 0.15);
   color: var(--text-muted);
