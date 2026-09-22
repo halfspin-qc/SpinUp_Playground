@@ -7,7 +7,8 @@
     "dev": "astro dev --host",
     "start": "astro dev --host",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "sync": "node scripts/sync-apify-cron.js"
   },
   "dependencies": {
     "@astrojs/node": "^9.1.0",
