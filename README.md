@@ -6,6 +6,20 @@ The flagship experiment in this workspace is **`jev-reviews`**: an automated pip
 
 ---
 
+## Application Previews (Localhost)
+
+### 1. SpinUp Experiments with AI Hub
+*Landing hub showcasing autonomous pipelines, scraper storage, and model playgrounds:*
+
+![SpinUp AI Experiments Hub](./public/screenshots/spinup-hub-home.png)
+
+### 2. Google Reviews Scrapes & Jev Classifier Dashboard
+*Real-time pipeline with Apify sync, Supabase storage, live Jev Speed & Cost KPI cards (~230ms • $0.042/Mtok), and batch classification:*
+
+![Google Reviews & Jev Classifier Dashboard](./public/screenshots/jev-reviews-dashboard.png)
+
+---
+
 ## Supported AI Models
 
 The classifier supports multiple AI backends, with **Jev** as the primary recommended engine:
