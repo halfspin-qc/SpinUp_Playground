@@ -1,4 +1,4 @@
-# SpinUp Experiments with AI: jev-reviews
+# SpinUp Experiments with AI
 
 A high-performance, dark-themed web application built with **Astro 5** and **TypeScript** to showcase bleeding-edge AI models, scrapers, and operational intelligence pipelines.
 
